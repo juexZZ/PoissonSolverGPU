@@ -11,7 +11,7 @@
 using namespace std;
 using namespace Eigen;
 
-
+//For symmetric only
 bool loadMarket(string fileName,  SparseMatrix<double>&mat) {
 	ifstream fin(fileName);
 	long int M, N, L;
@@ -25,7 +25,7 @@ bool loadMarket(string fileName,  SparseMatrix<double>&mat) {
 	}
 	fin >> M >> N >> L;
 	mat.resize(M,N);
-	mat.reserve(2*L);
+	mat.reserve(2*L-M);
 	vector<Eigen::Triplet<double>>triple;
 	for (size_t i = 0; i < L; i++)
 	{

@@ -3,12 +3,12 @@
 #include "../solver/cg.h"
 using namespace std;
 using namespace Eigen;
-//TEST_CASE("LoadMarket") {
-//	const std::string path = "E:/NYU/GPU_Poisson/PoissonSolver/data";
-//	Eigen::SparseMatrix<double> A;
-//	const bool ok = loadMarket(path + "/A0.mat",A);
-//	REQUIRE(ok);	
-//}
+TEST_CASE("LoadMarket") {
+	const std::string path = "E:/NYU/GPU_Poisson/PoissonSolver/data";
+	Eigen::SparseMatrix<double> A;
+	const bool ok = loadMarket(path + "/poisson3Db.mtx",A);
+	REQUIRE(ok);	
+}
 TEST_CASE("DynamicMatrix") {
 	MatrixXd a;
 	a.resize(100, 100);
@@ -43,3 +43,4 @@ TEST_CASE("CGSequential") {
 	x_cg = cg.solve(b);
 	REQUIRE((A * x_cg - b).norm() < 1e-5);
 }
+
