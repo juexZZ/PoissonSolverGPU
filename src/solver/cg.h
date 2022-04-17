@@ -7,6 +7,9 @@
 #include <string>
 #include <vector>
 
+#include <cuda.h>
+#include "gpukernels.h"
+
 using namespace std;
 using namespace Eigen;
 
@@ -89,6 +92,32 @@ public:
 		}
 		return x;
 		
+	}
+
+	VectorXd solve_gpu_dense(){
+		/*
+		A GPU solver for dense case, 1st version
+		*/
+		unsigned int matrix_bytesize = A.size()*sizeof(double); // NxN
+		unsigned int N = A.rows();
+		unsigned int vector_bytesize = N * sizeof(double);
+		// convert matrix to row-major storage
+		Matrix<double, N, N, RowMajor> Arowmajor = A;
+		// allocate and move to device
+		double* rhs_d; // b(rhs) on device
+		double* A_d; // A on device
+		double* x_d; //x on device
+		cudaMalloc((void**)&A_d, matrix_bytesize);
+		cudaMalloc((void**)&rhs_d, vector_bytesize);
+		cudaMalloc((void**)&x_d, vector_bytesize);
+
+		cudaMemcpy(A_d, Arowmajor.data(), matrix_bytesize, cudaMemcpyHostToDevice);
+		cudaMemcpy(rhs_d, rhs.data(), vector_bytesize, cudaMemcpyHostToDevice);
+		cudaMemcpy(x_d, x.data(), vector_bytesize, cudaMemcpyHostToDevice);
+		// solve at device side
+		PossionSolverDense(rhs_d, A_d, x_d, N, maxIter);
+
+		// move back and free and return
 	}
 };
 
