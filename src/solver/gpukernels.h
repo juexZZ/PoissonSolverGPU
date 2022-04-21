@@ -3,7 +3,7 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 
-void wrapper_PossionSolverDense(unsigned int blocksPerGrid,
+void wrapper_PoissonSolverDense(unsigned int blocksPerGrid,
 	unsigned int threadsPerBlock,
 	double* rhs_d,
 	double* A_d,
