@@ -12,7 +12,10 @@
 using namespace std;
 
 
-int main() {
+int main(int argc, char* argv[]) {
+	if(argc!=2){
+		cout<<"Usage: ./cudatest num_iter"<<endl;
+	}
 	string PATH = "../../data/";
 	Eigen::MatrixXd A = openData(PATH + "test_100.csv");
 	VectorXd rhs(A.cols()), x(A.rows()), x_cg(A.rows());
@@ -20,7 +23,7 @@ int main() {
 	x.setZero();
 	double reTol = 1e-8; //Relative error tolerence
 	double absTol = 0;
-	int maxIter = 500;
+	int maxIter = atoi(argv[1]);
 	cudaError_t cudaStatus;
 	unsigned int matrix_bytesize = A.size() * sizeof(double); // NxN
 	unsigned int N = A.rows();
