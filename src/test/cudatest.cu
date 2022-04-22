@@ -86,7 +86,7 @@ int main(int argc, char* argv[]) {
 	unsigned int blocksPerGrid = 1;
 
 	// solve at device side
-	wrapper_PossionSolverDense(blocksPerGrid, threadsPerBlock, rhs_d, A_d, x_d, rk, pk, abstol, N, maxIter);
+	wrapper_PoissonSolverDense(blocksPerGrid, threadsPerBlock, rhs_d, A_d, x_d, rk, pk, abstol, N, maxIter);
 
 	cudaDeviceSynchronize();
 	cudaError_t error = cudaGetLastError();

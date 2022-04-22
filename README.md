@@ -1,12 +1,12 @@
-# PossionSolverGPU
+# PoissonSolverGPU
 
 A GPU Solver for Poisson Problem 2D
 
 ### Test CUDA
 
-Eigen library is the prerequisite. To use, download eigen release to your machien and include that path during compilation. See example below.
+Eigen library is the prerequisite. To use, download eigen release to your machine and include that path during compilation. See example below.
 
-Double precision is only supported in computing compability >= 6.0, so make sure the machine satisfies. For example, run this on cims cuda2.
+Double precision is only supported in computing compability >= 6.0, so make sure the machine satisfies. For example, this runs successfully on cims cuda2.
 
 You should compile with this command:
 
@@ -14,4 +14,4 @@ You should compile with this command:
 
 Then hit run:
 
-`./cudatest`
+`./cudatest num_iters`
