@@ -12,32 +12,30 @@ using namespace std;
 using namespace Eigen;
 
 //For symmetric only
-bool loadMarket(string fileName,  SparseMatrix<double>&mat) {
-	ifstream fin(fileName);
+void readSymetric(Eigen::SparseMatrix<double>& A, std::string PATH) {
+	std::ifstream fin(PATH);
 	long int M, N, L;
-	if (!fin.is_open())
-	{
-		return false;
-	}
-	while (fin.peek()=='%')
+	while (fin.peek() == '%')
 	{
 		fin.ignore(2048, '\n');
 	}
 	fin >> M >> N >> L;
-	mat.resize(M,N);
-	mat.reserve(2*L-M);
-	vector<Eigen::Triplet<double>>triple;
+	A.resize(M, N);
+	A.reserve(L * 2 - M);
+	std::vector<Eigen::Triplet<double>> triple;
 	for (size_t i = 0; i < L; i++)
 	{
 		int m, n;
 		double data;
 		fin >> m >> n >> data;
-		triple.push_back(Triplet<double>(m - 1, n - 1, data));
-		triple.push_back(Triplet<double>(n - 1, m - 1, data));
+		triple.push_back(Eigen::Triplet<double>(m - 1, n - 1, data));
+		if (m != n)
+		{
+			triple.push_back(Eigen::Triplet<double>(n - 1, m - 1, data));
+		}
 	}
 	fin.close();
-	mat.setFromTriplets(triple.begin(), triple.end());
-	return true;
+	A.setFromTriplets(triple.begin(), triple.end());
 }
 
 void denseSPD(int n, MatrixXd& result) {

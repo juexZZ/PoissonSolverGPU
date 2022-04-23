@@ -13,3 +13,14 @@ void wrapper_PoissonSolverDense(unsigned int blocksPerGrid,
 	double abstol,
 	unsigned int N,
 	int maxIter);
+
+void wrapper_PoissonSolverSparse(unsigned int blocksPerGrid,
+	unsigned int threadsPerBlock,
+	double* rhs_d,
+	double* A_d,
+	double* x_d,
+	double* rk,
+	double* pk,
+	double abstol,
+	unsigned int N,
+	int maxIter);

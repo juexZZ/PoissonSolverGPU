@@ -44,3 +44,6 @@ TEST_CASE("CGSequential") {
 	REQUIRE((A * x_cg - b).norm() < 1e-5);
 }
 
+TEST_CASE("Sparse Generator") {
+
+}

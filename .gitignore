@@ -1,4 +1,8 @@
-
+.git
+.vs
+cudatest
+densesolver
+sparsesolver
 .vscode
 .gitignore
 .DS_Store
