@@ -10,9 +10,6 @@
 
 #include "gpukernels.h"
 
-typedef long long int int64_cu;
-typedef unsigned long long int uint64_cu;
-
 /* To index element (i,j) of a 2D array stored as 1D */
 #define index(i, j, N)  ((i)*(N)) + (j)
 
@@ -29,9 +26,14 @@ __device__  void selfatomicCAS(double* address, double val) {
 		// Note: uses integer comparison to avoid hang in case of NaN (since NaN != NaN)
 	} while (assumed != old);
 }
-
-__global__ void PoissonSolverSparse(double* b0, double* A, double* xk, int* ia, int* ja, double* rk, double* pk,
-	double eps, unsigned int N, unsigned int iters);
+__global__ void PoissonSolverSparse_init(double* b0, double* A, int* ia, int* ja, double* xk, double* rk, double* pk, double eps,
+	unsigned int N);
+__global__ void PoissonSolverSparse_iter1(double* b0, double* A, int* ia, int* ja, double* xk, double* rk, double* pk,
+	double eps, unsigned int N, double* Ap_rd);
+__global__ void PoissonSolverSparse_iter2(double* b0, double* A, int* ia, int* ja, double* xk, double* rk, double* pk,
+	double eps, unsigned int N, double* Ap_rd);
+__global__ void PoissonSolverSparse_iter3(double* b0, double* A, int* ia, int* ja, double* xk, double* rk, double* pk,
+	double eps, unsigned int N, double* Ap_rd);
 
 /* CUDA Kernel for Dense Poisson problem
 Hyper Param:
@@ -56,67 +58,77 @@ __device__ double r_k1_norm = 0.0;
 __device__ double pAp_k = 0.0;
 __device__ bool norm_updated = false;
 
+
 __global__
-void PoissonSolverSparse(double* b0, double* A,int* ia, int* ja,double* xk, double* rk, double* pk,
-	double eps, unsigned int N, unsigned int iters) {
+void PoissonSolverSparse_init(double* b0, double* A, int* ia, int* ja, double* xk, double* rk, double* pk, double eps,
+	unsigned int N) {
 	// 1 dimesion geometry
 	int ri = blockDim.x * blockIdx.x + threadIdx.x;
 	//ia[ri+1]-ia[ri] is the number of i-th row entries
 	if (ri < N)
 	{
-		double* row;
-		row = (double*)malloc(ia[ri + 1] - ia[ri]);
-		for (size_t i = 0; i < ia[ri + 1]-ia[ri]; i++)
-		{
-			row[i] = A[ia[ri]+i];
-		}
 		// initial, compute r0 and p0
 		double Ax0_r = 0;
 		//double x0_r = xk[ri];
 		for (unsigned int j = 0; j < ia[ri + 1] - ia[ri]; j++) {
-			Ax0_r += row[j] * xk[j]; // x0_r;
+			Ax0_r += A[j + ia[ri]] * xk[ja[j + ia[ri]]]; // x0_r;
 		}
 		double b_r = b0[ri];
 		rk[ri] = b_r - Ax0_r;
 		pk[ri] = b_r - Ax0_r;
 		atomicAdd(&r_k_norm, rk[ri] * rk[ri]); //&r_k_norm takes addr
-		__syncthreads();
-		// iterate here
-		for (unsigned int itk = 0; itk < iters; itk++) {
-			// compute \alpha_k
-			double Ap_r = 0;
-			double pk_r = pk[ri];
-			for (unsigned int j = 0; j < ia[ri + 1] - ia[ri]; j++) {
-				Ap_r += row[j] * pk[j]; //pk_r;
-			}
-			// atomicAdd(r_k_norm, rk[ri]*rk[ri]);
-			atomicAdd(&pAp_k, pk_r * Ap_r);
-			selfatomicCAS(&r_k1_norm,0.0);
-			__syncthreads();
-			double alpha_k = r_k_norm / pAp_k; //solve contension by getting one for each thread
-			// update x_k to x_{k+1}, r_k to r_{k+1}
-			xk[ri] = xk[ri] + alpha_k * pk_r;
-			rk[ri] = rk[ri] - alpha_k * Ap_r;
-			// compute beta k
-			atomicAdd(&r_k1_norm, rk[ri] * rk[ri]);
-			__syncthreads();
-			// terminating condition:
-			if (r_k1_norm < eps) {
-				break;
-			}
-			double temp_r_k1_norm = r_k1_norm;
-			double beta_k = temp_r_k1_norm / r_k_norm; //solve contension by getting one for each thread
-			// update pk to pk1
-			pk[ri] = rk[ri] + beta_k * pk[ri];
-			selfatomicCAS(&pAp_k, 0.0);
-			selfatomicCAS(&r_k_norm, temp_r_k1_norm);
-		}
 	}
-
 }
 
-// wrapper function 
-void wrapper_PoissonSolverSparse(unsigned int blocksPerGrid,
+__global__
+void PoissonSolverSparse_iter1(double* b0, double* A, int* ia, int* ja, double* xk, double* rk, double* pk,
+	double eps, unsigned int N,double* Ap_rd) {
+	int ri = blockDim.x * blockIdx.x + threadIdx.x;
+	if (ri < N)
+	{
+		selfatomicCAS(&pAp_k, 0.0);
+		selfatomicCAS(&r_k_norm, r_k1_norm);
+		// compute \alpha_k
+		double Ap_r = 0;
+		double pk_r = pk[ri];
+		for (unsigned int j = 0; j < ia[ri + 1] - ia[ri]; j++) {
+			Ap_r += A[j + ia[ri]] * pk[ja[j + ia[ri]]]; //pk_r;
+		}
+		Ap_rd[ri] = Ap_r;
+		// atomicAdd(r_k_norm, rk[ri]*rk[ri]);
+		atomicAdd(&pAp_k, pk_r * Ap_r);
+		selfatomicCAS(&r_k1_norm, 0.0);
+	}
+}
+__global__
+void PoissonSolverSparse_iter2(double* b0, double* A, int* ia, int* ja, double* xk, double* rk, double* pk,
+	double eps, unsigned int N, double* Ap_rd) {
+	int ri = blockDim.x * blockIdx.x + threadIdx.x;
+	if (ri < N)
+	{
+		double alpha_k = r_k_norm / pAp_k; //solve contension by getting one for each thread
+		// update x_k to x_{k+1}, r_k to r_{k+1}
+		xk[ri] = xk[ri] + alpha_k * pk[ri];
+		rk[ri] = rk[ri] - alpha_k * Ap_rd[ri];
+		// compute beta k
+		atomicAdd(&r_k1_norm, rk[ri] * rk[ri]);
+	}
+}
+__global__
+void PoissonSolverSparse_iter3(double* b0, double* A, int* ia, int* ja, double* xk, double* rk, double* pk,
+	double eps, unsigned int N, double* Ap_rd) {
+	int ri = blockDim.x * blockIdx.x + threadIdx.x;
+	if (ri < N) {
+		// terminating condition:
+		double temp_r_k1_norm = r_k1_norm;
+		double beta_k = temp_r_k1_norm / r_k_norm; //solve contension by getting one for each thread
+		// update pk to pk1
+		pk[ri] = rk[ri] + beta_k * pk[ri];
+	}
+}
+
+
+void wrapper_PoissonSolverSparse_multiblock(unsigned int blocksPerGrid,
 	unsigned int threadsPerBlock,
 	double* rhs_d,
 	double* A_d,
@@ -127,8 +139,16 @@ void wrapper_PoissonSolverSparse(unsigned int blocksPerGrid,
 	double* pk,
 	double abstol,
 	unsigned int N,
-	int maxIter) {
-	// call cuda kernel functions here
+	int maxIter,double* Ap_rd) {
 	printf("N = %d, kernel has %d blocks each has %d threads\n", N, blocksPerGrid, threadsPerBlock);
-	PoissonSolverSparse << <blocksPerGrid, threadsPerBlock >> > (rhs_d, A_d, ia_d, ja_d, x_d, rk, pk, abstol, N, maxIter);
+	PoissonSolverSparse_init<<<blocksPerGrid, threadsPerBlock >>> (rhs_d, A_d, ia_d, ja_d, x_d, rk, pk, abstol, N);
+	for (size_t i = 0; i < maxIter; i++)
+	{
+		PoissonSolverSparse_iter1 <<<blocksPerGrid, threadsPerBlock >> > (rhs_d, A_d, ia_d, ja_d, x_d, rk, pk, abstol, N,Ap_rd);
+		cudaDeviceSynchronize();
+		PoissonSolverSparse_iter2 <<<blocksPerGrid, threadsPerBlock >> > (rhs_d, A_d, ia_d, ja_d, x_d, rk, pk, abstol, N,Ap_rd);
+		cudaDeviceSynchronize();
+		PoissonSolverSparse_iter3 <<<blocksPerGrid, threadsPerBlock >> > (rhs_d, A_d, ia_d, ja_d, x_d, rk, pk, abstol, N,Ap_rd);
+		cudaDeviceSynchronize();
+	}
 }

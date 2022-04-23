@@ -28,7 +28,6 @@ int main(int argc, char* argv[]) {
 	rhs.setOnes();
 	x.setZero();
 	double reTol = 1e-8; //Relative error tolerence
-	double absTol = 0;
 	int maxIter = atoi(argv[1]);
 	cudaError_t cudaStatus;
 	unsigned int N = A.rows();
@@ -43,6 +42,9 @@ int main(int argc, char* argv[]) {
 	int* ja_d;
 
 	double* x_d; //x on device
+	double* Ap_rd;
+	double* Ap_r;
+	Ap_r=(double*)calloc(N,sizeof(double));
 
 	cudaStatus = cudaMalloc((void**)&A_d, A.nonZeros() * sizeof(double));
 	if (cudaStatus != cudaSuccess) {
@@ -66,6 +68,11 @@ int main(int argc, char* argv[]) {
 		//goto Error;
 	}
 	cudaStatus = cudaMalloc((void**)&x_d, vector_bytesize);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMalloc failed!");
+		//goto Error;
+	}
+	cudaStatus = cudaMalloc((void**)&Ap_rd, vector_bytesize);
 	if (cudaStatus != cudaSuccess) {
 		fprintf(stderr, "cudaMalloc failed!");
 		//goto Error;
@@ -101,6 +108,11 @@ int main(int argc, char* argv[]) {
 		fprintf(stderr, "cudaMemcpy failed!");
 		//goto Error;
 	}
+	cudaStatus = cudaMemcpy(Ap_rd, Ap_r, vector_bytesize, cudaMemcpyHostToDevice);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpy failed!");
+		//goto Error;
+	}
 
 	// create intermediate variables
 	double* rk; //residue
@@ -117,11 +129,11 @@ int main(int argc, char* argv[]) {
 	}
 
 	//setup geometry
-	unsigned int threadsPerBlock = N;
-	unsigned int blocksPerGrid = 1;
+	unsigned int threadsPerBlock = 256;
+	unsigned int blocksPerGrid = ceil((double)N/256.0);
 
 	// solve at device side
-	wrapper_PoissonSolverSparse(blocksPerGrid, threadsPerBlock, rhs_d, A_d,ia_d,ja_d, x_d, rk, pk, abstol, N, maxIter);
+	wrapper_PoissonSolverSparse_multiblock(blocksPerGrid, threadsPerBlock, rhs_d, A_d,ia_d,ja_d, x_d, rk, pk, abstol, N, maxIter,Ap_rd);
 
 	cudaDeviceSynchronize();
 	cudaError_t error = cudaGetLastError();
