@@ -40,10 +40,14 @@ int main(int argc, char* argv[]) {
 	double* A_d;
 	int* ia_d;
 	int* ja_d;
+	double* r_k_norm;
+	double* r_k1_norm;
+	double* pAp_k;
 
 	double* x_d; //x on device
 	double* Ap_rd;
 	double* Ap_r;
+	double initial = 0.0;
 	Ap_r=(double*)calloc(N,sizeof(double));
 
 	cudaStatus = cudaMalloc((void**)&A_d, A.nonZeros() * sizeof(double));
@@ -73,6 +77,22 @@ int main(int argc, char* argv[]) {
 		//goto Error;
 	}
 	cudaStatus = cudaMalloc((void**)&Ap_rd, vector_bytesize);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMalloc failed!");
+		//goto Error;
+	}
+
+	cudaStatus = cudaMalloc((void**)&r_k_norm, sizeof(double));
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMalloc failed!");
+		//goto Error;
+	}
+	cudaStatus = cudaMalloc((void**)&r_k1_norm, sizeof(double));
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMalloc failed!");
+		//goto Error;
+	}
+	cudaStatus = cudaMalloc((void**)&pAp_k, sizeof(double));
 	if (cudaStatus != cudaSuccess) {
 		fprintf(stderr, "cudaMalloc failed!");
 		//goto Error;
@@ -113,6 +133,21 @@ int main(int argc, char* argv[]) {
 		fprintf(stderr, "cudaMemcpy failed!");
 		//goto Error;
 	}
+	cudaStatus = cudaMemcpy(r_k_norm, &initial,  sizeof(double), cudaMemcpyHostToDevice);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpy failed!");
+		//goto Error;
+	}
+	cudaStatus = cudaMemcpy(r_k1_norm, &initial, sizeof(double), cudaMemcpyHostToDevice);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpy failed!");
+		//goto Error;
+	}
+	cudaStatus = cudaMemcpy(pAp_k, &initial, sizeof(double), cudaMemcpyHostToDevice);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpy failed!");
+		//goto Error;
+	}
 
 	// create intermediate variables
 	double* rk; //residue
@@ -133,7 +168,7 @@ int main(int argc, char* argv[]) {
 	unsigned int blocksPerGrid = ceil((double)N/256.0);
 
 	// solve at device side
-	wrapper_PoissonSolverSparse_multiblock(blocksPerGrid, threadsPerBlock, rhs_d, A_d,ia_d,ja_d, x_d, rk, pk, abstol, N, maxIter,Ap_rd);
+	wrapper_PoissonSolverSparse_multiblock(blocksPerGrid, threadsPerBlock, rhs_d, A_d,ia_d,ja_d, x_d, rk, pk, abstol, N, maxIter,Ap_rd,r_k_norm,r_k1_norm,pAp_k);
 
 	cudaDeviceSynchronize();
 	cudaError_t error = cudaGetLastError();

@@ -69,7 +69,8 @@ void saveData(string fileName, MatrixXd  matrix)
 	}
 }
 
-MatrixXd openData(string fileToOpen)
+template <typename T>
+Matrix<T,Dynamic,Dynamic> openData(string fileToOpen)
 {
 
 	// the inspiration for creating this function was drawn from here (I did NOT copy and paste the code)
@@ -87,7 +88,7 @@ MatrixXd openData(string fileToOpen)
 	//    d e f]
 	// the entries are stored as matrixEntries=[a,b,c,d,e,f], that is the variable "matrixEntries" is a row vector
 	// later on, this vector is mapped into the Eigen matrix format
-	vector<double> matrixEntries;
+	vector<T> matrixEntries;
 
 	// in this object we store the data from the matrix
 	ifstream matrixDataFile(fileToOpen);
@@ -115,7 +116,7 @@ MatrixXd openData(string fileToOpen)
 
 	// here we convet the vector variable into the matrix and return the resulting object, 
 	// note that matrixEntries.data() is the pointer to the first memory location at which the entries of the vector matrixEntries are stored;
-	return Map<Matrix<double, Dynamic, Dynamic, RowMajor>>(matrixEntries.data(), matrixRowNumber, matrixEntries.size() / matrixRowNumber);
+	return Map<Matrix<double, Dynamic, Dynamic>>(matrixEntries.data(), matrixRowNumber, matrixEntries.size() / matrixRowNumber);
 
 }
 
