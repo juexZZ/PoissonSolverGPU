@@ -38,6 +38,7 @@ Params:
 double* A: matrix
 double* b0: initial b
 double* xk: initial x, and subsequent x
+
 intermediate variables:
 double* rk: residue
 double* pk
@@ -58,52 +59,49 @@ void PoissonSolverDense(double* b0, double* A, double* xk, double* rk, double* p
 
     // 1 dimesion geometry
     int ri = blockDim.x * blockIdx.x + threadIdx.x;
-    // initial, compute r0 and p0
-    double Ax0_r = 0;
-    //double x0_r = xk[ri];
-    for(unsigned int j=0; j<N; j++){
-        double Aik = A[index(ri, j, N)];
-        Ax0_r += Aik * xk[j]; // x0_r;
-    }
-    double b_r = b0[ri];
-    rk[ri] = b_r - Ax0_r;
-    pk[ri] = b_r - Ax0_r;
-    atomicAdd(&r_k_norm, rk[ri]*rk[ri]); //&r_k_norm takes addr
-    __syncthreads();
-    // iterate here
-    for(unsigned int itk = 0; itk<iters; itk++){
-        // compute \alpha_k
-        double Ap_r = 0;
-        double pk_r = pk[ri];
-        for(unsigned int j=0; j<N; j++){
+    if (ri < N) {
+        // initial, compute r0 and p0
+        double Ax0_r = 0;
+        //double x0_r = xk[ri];
+        for (unsigned int j = 0; j < N; j++) {
             double Aik = A[index(ri, j, N)];
-            Ap_r += Aik * pk[j]; //pk_r;
+            Ax0_r += Aik * xk[j];
         }
-        // atomicAdd(r_k_norm, rk[ri]*rk[ri]);
-        atomicAdd(&pAp_k, pk_r*Ap_r);
-        r_k1_norm = 0.0;
+        double b_r = b0[ri];
+        rk[ri] = b_r - Ax0_r;
+        pk[ri] = b_r - Ax0_r;
+        atomicAdd(&r_k_norm, rk[ri] * rk[ri]); //&r_k_norm takes addr
         __syncthreads();
-        double alpha_k = r_k_norm / pAp_k; //solve contension by getting one for each thread
-        // update x_k to x_{k+1}, r_k to r_{k+1}
-        xk[ri] = xk[ri] + alpha_k * pk_r;
-        rk[ri] = rk[ri] - alpha_k * Ap_r;
-        // compute beta k
-        atomicAdd(&r_k1_norm, rk[ri]*rk[ri]);
-        __syncthreads();
-        // terminating condition:
-        if(r_k1_norm < eps){
-            break;
-        }
-        double beta_k = r_k1_norm / r_k_norm; //solve contension by getting one for each thread
-        // update pk to pk1
-        pk[ri] = rk[ri] + beta_k * pk[ri];
-        pAp_k = 0.0;
-        norm_updated = false;
-        __syncthreads();
-        // update rk norm to r_k1_norm, set r_k1_norm to 0 before next iter.
-        if(!norm_updated){ 
-            norm_updated = true; //for modification protect, cause 1 branch div, avoid 1 sync
-            r_k_norm = r_k1_norm;
+        // iterate here
+        for (unsigned int itk = 0; itk < iters; itk++) {
+            // compute \alpha_k
+            double Ap_r = 0;
+            double pk_r = pk[ri];
+            for (unsigned int j = 0; j < N; j++) {
+                double Aik = A[index(ri, j, N)];
+                Ap_r += Aik * pk[j];
+            }
+            atomicAdd(&pAp_k, pk_r * Ap_r);
+            selfatomicCAS(&r_k1_norm, 0.0);//r_k1_norm = 0.0;
+            __syncthreads();
+            double alpha_k = r_k_norm / pAp_k; //solve contension by getting one for each thread
+            // update x_k to x_{k+1}, r_k to r_{k+1}
+            xk[ri] = xk[ri] + alpha_k * pk_r;
+            rk[ri] = rk[ri] - alpha_k * Ap_r;
+            // compute beta k
+            atomicAdd(&r_k1_norm, rk[ri] * rk[ri]);
+            __syncthreads();
+            // terminating condition:
+            if (r_k1_norm < eps) {
+                break;
+            }
+            double temp_r_k1_norm = r_k1_norm;
+            double beta_k = r_k1_norm / r_k_norm; //solve contension by getting one for each thread
+            // update pk to pk1
+            pk[ri] = rk[ri] + beta_k * pk[ri];
+            __syncthreads();
+            selfatomicCAS(&pAp_k, 0.0);
+            selfatomicCAS(&r_k_norm, temp_r_k1_norm); // update rk norm to r_k1_norm, set r_k1_norm to 0 before next iter.
         }
     }
 }
