@@ -21,49 +21,21 @@ test main
 using namespace std;
 using namespace Eigen;
 
-bool double_precision = true; //default
-int maxIter=1000;
-string algo="t";
-
-//void arg_parser(int argc, char** argv){
-//    int c;
-//    while((c=getopt(argc, argv, "i::a::p")) != -1){
-//        switch (c)
-//        {
-//        case 'i':
-//            maxIter = stoi(string(optarg));
-//            break;
-//        case 'a':
-//            algo = string(optarg);
-//            break;
-//        case 'p':
-//            double_precision = stoi(string(optarg));
-//        case '?':
-//            if (optopt == 'i' || optopt == 'a' || optopt == 'p')
-//                fprintf (stderr, "Option -%c requires an argument.\n", optopt);
-//            else if (isprint (optopt))
-//                fprintf (stderr, "Unknown option `-%c'.\n", optopt);
-//            else
-//                fprintf (stderr,
-//                        "Unknown option character `\\x%x'.\n",
-//                        optopt);
-//            exit(1);
-//        default:
-//            abort();
-//        }
-//    }
-//}
+// bool double_precision = true; //default
+// int maxIter=1000;
+// string algo="t";
 
 int main(int argc, char* argv[]) {
-	//if(argc!=4){
-	//	cout<<"Usage: ./cudatest path_to_data -i num_iter -p precision(0/1) -a method"<<endl;
- //       exit(1);
-	//}
+	if(argc!=5){
+		cout<<"Usage: ./cudatest path_to_data num_iter precision(0/1) method"<<endl;
+       exit(1);
+	}
 	/*string PATH = "../../data/";*/
-     string PATH = "C:/NYU/gpu/PoissonSolver/data/";
-    /*arg_parser(argc,argv);*/
-	/*string PATH = string(argv[1]);*/
-    // double_precision = atoi(argv[3]); // 0 false, 1 true
+    // string PATH = "C:/NYU/gpu/PoissonSolver/data/";
+	string PATH = string(argv[1]);
+    int maxIter = atoi(argv[2]);
+    bool double_precision = atoi(argv[3]); // 0 false, 1 true
+    string algo = string(argv[4]);
 
     if (double_precision){
         cout<<"using double precision..."<<endl;
@@ -80,14 +52,15 @@ int main(int argc, char* argv[]) {
         unsigned int threadsPerBlock = N;
         unsigned int blocksPerGrid = 1;
 
-        Eigen::VectorXd root;
+        Eigen::VectorXd root(N);
         if (algo == "d"){
-            root = wrapper_PoissonSolverDense<double>(
+            wrapper_PoissonSolverDense<double>(
                 blocksPerGrid, 
                 threadsPerBlock, 
                 rhs.data(),
                 Arowmajor.data(),
                 x.data(),
+                root,
                 abstol,
                 N,
                 maxIter
@@ -96,12 +69,13 @@ int main(int argc, char* argv[]) {
         else if (algo == "t"){
             // cast A to float
             MatrixXf Arf = Arowmajor.cast<float>();
-            root = wrapper_PoissonSolverTexture<double>(
+            wrapper_PoissonSolverTexture<double>(
                 blocksPerGrid,
                 threadsPerBlock,
                 rhs.data(),
                 Arf.data(),
                 x.data(),
+                root,
                 abstol,
                 N,
                 maxIter
@@ -144,26 +118,28 @@ int main(int argc, char* argv[]) {
         unsigned int threadsPerBlock = N;
         unsigned int blocksPerGrid = 1;
 
-        Eigen::VectorXf root;
+        Eigen::VectorXf root(N);
         if(algo=="d"){
-            root = wrapper_PoissonSolverDense<float>(
+        wrapper_PoissonSolverDense<float>(
                 blocksPerGrid, 
                 threadsPerBlock, 
                 rhs.data(),
                 Arowmajor.data(),
                 x.data(),
+                root,
                 abstol,
                 N,
                 maxIter
             ); 
         }
         else if (algo=="t"){
-            root = wrapper_PoissonSolverTexture<float>(
+        wrapper_PoissonSolverTexture<float>(
                 blocksPerGrid,
                 threadsPerBlock,
                 rhs.data(),
                 Arowmajor.data(),
                 x.data(),
+                root,
                 abstol,
                 N,
                 maxIter

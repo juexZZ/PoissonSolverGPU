@@ -12,26 +12,43 @@
 /* To index element (i,j) of a 2D array stored as 1D */
 #define index(i, j, N)  ((i)*(N)) + (j)
 
+__device__ __forceinline__
+double my_fast_float2double(float a, double mom)
+{
+    unsigned int ia = __float_as_int(a);
+    return __hiloint2double((((ia >> 3) ^ ia) & 0x07ffffff) ^ ia, ia << 29);
+}
+
+__device__ __forceinline__
+float my_fast_float2double(float a, float mom)
+{
+    return a;
+}
+
+texture<float, cudaTextureType1D, cudaReadModeElementType> Atext;
+texture<int, cudaTextureType1D, cudaReadModeElementType> iat;
+texture<int, cudaTextureType1D, cudaReadModeElementType> jat;
+
 template <typename T>
-__global__ void PoissonSolverSparse_init(T* b0, T* A, int* ia, int* ja, T* xk, T* rk, T* pk, T eps,
+__global__ void PoissonSolverSparse_init(T* b0, int* ia, int* ja, T* xk, T* rk, T* pk, T eps,
 	unsigned int N, T* r_k_norm, T* r_k1_norm, T* pAp_k);
 
 template <typename T>
-__global__ void PoissonSolverSparse_iter1(T* b0, T* A, int* ia, int* ja, T* xk, T* rk, T* pk,
+__global__ void PoissonSolverSparse_iter1(T* b0, int* ia, int* ja, T* xk, T* rk, T* pk,
 	T eps, unsigned int N, T* Ap_rd, T* r_k_norm, T* r_k1_norm, T* pAp_k);
 
 template <typename T>
-__global__ void PoissonSolverSparse_iter2(T* b0, T* A, int* ia, int* ja, T* xk, T* rk, T* pk,
+__global__ void PoissonSolverSparse_iter2(T* b0, int* ia, int* ja, T* xk, T* rk, T* pk,
 	T eps, unsigned int N, T* Ap_rd, T* r_k_norm, T* r_k1_norm, T* pAp_k);
 	
 template <typename T>
-__global__ void PoissonSolverSparse_iter3(T* b0, T* A, int* ia, int* ja, T* xk, T* rk, T* pk,
+__global__ void PoissonSolverSparse_iter3(T* b0, int* ia, int* ja, T* xk, T* rk, T* pk,
 	T eps, unsigned int N, T* Ap_rd, T* r_k_norm, T* r_k1_norm, T* pAp_k);
 
 	
 
 template <typename T>
-__global__ void PoissonSolverSparse_init(T* b0, T* A, int* ia, int* ja, T* xk, T* rk, T* pk, T eps,
+__global__ void PoissonSolverSparse_init(T* b0, int* ia, int* ja, T* xk, T* rk, T* pk, T eps,
 	unsigned int N, T* r_k_norm, T* r_k1_norm, T* pAp_k) {
 	// 1 dimesion geometry
 	int ri = blockDim.x * blockIdx.x + threadIdx.x;
@@ -41,8 +58,11 @@ __global__ void PoissonSolverSparse_init(T* b0, T* A, int* ia, int* ja, T* xk, T
 		// initial, compute r0 and p0
 		T Ax0_r = 0;
 		//T x0_r = xk[ri];
-		for (unsigned int j = 0; j < ia[ri + 1] - ia[ri]; j++) {
-			Ax0_r += A[j + ia[ri]] * xk[ja[j + ia[ri]]]; // x0_r;
+        int rstart = tex1Dfetch<int>(ia, ri);
+        int rend = tex1Dfetch<int>(ia, ri+1);
+		for (unsigned int j = 0; j < rend - rstart; j++) {
+            int xind = tex1Dfetch<int>(ja, j+rstart);
+			Ax0_r += my_fast_float2double(tex1Dfetch<float>(Atext, j+rstart), Ax0_r) * xk[xind];
 		}
 		T b_r = b0[ri];
 		rk[ri] = b_r - Ax0_r;
@@ -53,7 +73,7 @@ __global__ void PoissonSolverSparse_init(T* b0, T* A, int* ia, int* ja, T* xk, T
 }
 
 template <typename T>
-__global__ void PoissonSolverSparse_iter1(T* b0, T* A, int* ia, int* ja, T* xk, T* rk, T* pk,
+__global__ void PoissonSolverSparse_iter1(T* b0, int* ia, int* ja, T* xk, T* rk, T* pk,
 	T eps, unsigned int N,T* Ap_rd, T* r_k_norm, T* r_k1_norm, T* pAp_k) {
 	int ri = blockDim.x * blockIdx.x + threadIdx.x;
 	if (ri < N)
@@ -63,8 +83,11 @@ __global__ void PoissonSolverSparse_iter1(T* b0, T* A, int* ia, int* ja, T* xk, 
 		// compute \alpha_k
 		T Ap_r = 0;
 		T pk_r = pk[ri];
-		for (unsigned int j = 0; j < ia[ri + 1] - ia[ri]; j++) {
-			Ap_r += A[j + ia[ri]] * pk[ja[j + ia[ri]]]; //pk_r;
+        int rstart = tex1Dfetch<int>(ia, ri);
+        int rend = tex1Dfetch<int>(ia, ri+1);
+		for (unsigned int j = 0; j < rend - rstart; j++) {
+            int pind = tex1Dfetch<int>(ja, j+rstart);
+			Ap_r += my_fast_float2double(tex1Dfetch<float>(Atext, j+rstart), Ap_r) * pk[pind]; //pk_r;
 		}
 		Ap_rd[ri] = Ap_r;
 		// atomicAdd(r_k_norm, rk[ri]*rk[ri]);
@@ -73,7 +96,7 @@ __global__ void PoissonSolverSparse_iter1(T* b0, T* A, int* ia, int* ja, T* xk, 
 }
 
 template <typename T>
-__global__ void PoissonSolverSparse_iter2(T* b0, T* A, int* ia, int* ja, T* xk, T* rk, T* pk,
+__global__ void PoissonSolverSparse_iter2(T* b0, int* ia, int* ja, T* xk, T* rk, T* pk,
 	T eps, unsigned int N, T* Ap_rd, T* r_k_norm, T* r_k1_norm, T* pAp_k) {
 	int ri = blockDim.x * blockIdx.x + threadIdx.x;
 	if (ri < N)
@@ -89,7 +112,7 @@ __global__ void PoissonSolverSparse_iter2(T* b0, T* A, int* ia, int* ja, T* xk, 
 }
 
 template <typename T>
-__global__ void PoissonSolverSparse_iter3(T* b0, T* A, int* ia, int* ja, T* xk, T* rk, T* pk,
+__global__ void PoissonSolverSparse_iter3(T* b0, int* ia, int* ja, T* xk, T* rk, T* pk,
 	T eps, unsigned int N, T* Ap_rd, T* r_k_norm, T* r_k1_norm, T* pAp_k) {
 	int ri = blockDim.x * blockIdx.x + threadIdx.x;
 	if (ri < N) {
@@ -102,10 +125,10 @@ __global__ void PoissonSolverSparse_iter3(T* b0, T* A, int* ia, int* ja, T* xk, 
 }
 
 template <typename T>
-void wrapper_PoissonSolverSparse_multiblock(unsigned int blocksPerGrid,
+void wrapper_PoissonSolverSparse_texture_multiblock(unsigned int blocksPerGrid,
 	unsigned int threadsPerBlock,
 	Eigen::Matrix<T, Eigen::Dynamic, 1> &rhs_d,
-	Eigen::SparseMatrix<T> &A_d,
+	Eigen::SparseMatrix<float> &A_d,
 	Eigen::Matrix<T, Eigen::Dynamic, 1> &x,
 	Eigen::Matrix<T, Eigen::Dynamic, 1> &root,
 	unsigned int N,
@@ -115,7 +138,7 @@ void wrapper_PoissonSolverSparse_multiblock(unsigned int blocksPerGrid,
 	unsigned int vector_bytesize = N * sizeof(T);
 	T* rhs_d; // b(rhs) on device
 	// Triplet for A
-	T* A_d;
+	float* A_d;
 	int* ia_d,
 	int* ja_d,
 	T* r_k_norm;
@@ -129,7 +152,7 @@ void wrapper_PoissonSolverSparse_multiblock(unsigned int blocksPerGrid,
 	T temp = 0;
 	Ap_r=(T*)calloc(N,sizeof(T));
 
-	cudaStatus = cudaMalloc((void**)&A_d, A.nonZeros() * sizeof(T));
+	cudaStatus = cudaMalloc((void**)&A_d, A.nonZeros() * sizeof(float));
 	if (cudaStatus != cudaSuccess) {
 		fprintf(stderr, "cudaMalloc failed!");
 		//goto Error;
@@ -177,7 +200,7 @@ void wrapper_PoissonSolverSparse_multiblock(unsigned int blocksPerGrid,
 		//goto Error;
 	}
 
-	cudaStatus = cudaMemcpy(A_d, A.valuePtr(), A.nonZeros() * sizeof(T), cudaMemcpyHostToDevice);
+	cudaStatus = cudaMemcpy(A_d, A.valuePtr(), A.nonZeros() * sizeof(float), cudaMemcpyHostToDevice);
 	if (cudaStatus != cudaSuccess) {
 		fprintf(stderr, "cudaMemcpy failed!");
 		//goto Error;
@@ -239,16 +262,21 @@ void wrapper_PoissonSolverSparse_multiblock(unsigned int blocksPerGrid,
 		//goto Error;
 	}
 
+    //bind texture memory
+    cudaBindTexture(NULL, Atext, A_d, A.nonZeros() * sizeof(float));
+    cudaBindTexture(NULL, iat, ia_d, (A.rows() + 1) * sizeof(int));
+    cudaBindTexture(NULL, jat, ja_d, A.nonZeros() * sizeof(int));
+
 
 	printf("N = %d, kernel has %d blocks each has %d threads\n", N, blocksPerGrid, threadsPerBlock);
-	PoissonSolverSparse_init<T><<<blocksPerGrid, threadsPerBlock >>> (rhs_d, A_d, ia_d, ja_d, x_d, rk, pk, abstol, N, r_k_norm, r_k1_norm, pAp_k);
+	PoissonSolverSparse_init<T><<<blocksPerGrid, threadsPerBlock >>> (rhs_d, ia_d, ja_d, x_d, rk, pk, abstol, N, r_k_norm, r_k1_norm, pAp_k);
 	for (size_t i = 0; i < maxIter; i++)
 	{
-		PoissonSolverSparse_iter1<T> <<<blocksPerGrid, threadsPerBlock >> > (rhs_d, A_d, ia_d, ja_d, x_d, rk, pk, abstol, N,Ap_rd, r_k_norm, r_k1_norm, pAp_k);
+		PoissonSolverSparse_iter1<T> <<<blocksPerGrid, threadsPerBlock >> > (rhs_d, ia_d, ja_d, x_d, rk, pk, abstol, N,Ap_rd, r_k_norm, r_k1_norm, pAp_k);
 		cudaDeviceSynchronize();
-		PoissonSolverSparse_iter2<T> <<<blocksPerGrid, threadsPerBlock >> > (rhs_d, A_d, ia_d, ja_d, x_d, rk, pk, abstol, N,Ap_rd, r_k_norm, r_k1_norm, pAp_k);
+		PoissonSolverSparse_iter2<T> <<<blocksPerGrid, threadsPerBlock >> > (rhs_d, ia_d, ja_d, x_d, rk, pk, abstol, N,Ap_rd, r_k_norm, r_k1_norm, pAp_k);
 		cudaDeviceSynchronize();
-		PoissonSolverSparse_iter3<T> <<<blocksPerGrid, threadsPerBlock >> > (rhs_d, A_d, ia_d, ja_d, x_d, rk, pk, abstol, N,Ap_rd, r_k_norm, r_k1_norm, pAp_k);
+		PoissonSolverSparse_iter3<T> <<<blocksPerGrid, threadsPerBlock >> > (rhs_d, ia_d, ja_d, x_d, rk, pk, abstol, N,Ap_rd, r_k_norm, r_k1_norm, pAp_k);
 		cudaDeviceSynchronize();
 		cudaMemcpy(&temp, r_k1_norm, sizeof(T), cudaMemcpyDeviceToHost);
 		if (temp<abstol)
@@ -258,6 +286,9 @@ void wrapper_PoissonSolverSparse_multiblock(unsigned int blocksPerGrid,
 		}
 	}
 	cudaMemcpy(root.data(), x_d, vector_bytesize, cudaMemcpyDeviceToHost);
+    cudaUnbindTexture(Atext);
+    cudaUnbindTexture(iat);
+    cudaUnbindTexture(jat);
 	cudaFree(A_d);
 	cudaFree(ia_d);
 	cudaFree(ja_d);

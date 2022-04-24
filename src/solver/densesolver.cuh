@@ -97,11 +97,12 @@ __global__ void PoissonSolverDense(T* b0, T* A, T* xk, T* rk, T* pk,
 
 // wrapper function
 template <typename T> 
-Eigen::Matrix<T, Eigen::Dynamic, 1> wrapper_PoissonSolverDense(unsigned int blocksPerGrid,
+void wrapper_PoissonSolverDense(unsigned int blocksPerGrid,
     unsigned int threadsPerBlock,
     T* rhs_dptr,
     T* A_dptr,
     T* x_dptr,
+    Eigen::Matrix<T, Eigen::Dynamic, 1> &root,
     T abstol,
     unsigned int N,
     int maxIter) {
@@ -198,7 +199,7 @@ Eigen::Matrix<T, Eigen::Dynamic, 1> wrapper_PoissonSolverDense(unsigned int bloc
 
     printf("N = %d, kernel has %d blocks each has %d threads\n", N, blocksPerGrid, threadsPerBlock);
     PoissonSolverDense<T> << <blocksPerGrid, threadsPerBlock >> > (rhs_d, A_d, x_d, rk, pk, r_k_norm, r_k1_norm, pAp_k, abstol, N, maxIter);
-    Eigen::Matrix<T, Eigen::Dynamic, 1> root(N);
+    // Eigen::Matrix<T, Eigen::Dynamic, 1> root(N);
 	cudaMemcpy(root.data(), x_d, vector_bytesize, cudaMemcpyDeviceToHost);
     cudaFree(A_d);
 	cudaFree(rhs_d);
@@ -208,5 +209,4 @@ Eigen::Matrix<T, Eigen::Dynamic, 1> wrapper_PoissonSolverDense(unsigned int bloc
     cudaFree(r_k_norm);
     cudaFree(r_k1_norm);
     cudaFree(pAp_k);
-    return root;
 }

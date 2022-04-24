@@ -98,11 +98,12 @@ __global__ void PoissonSolverTexture(T* b0, T* xk, T* rk, T* pk,
     
 // wrapper function 
 template <typename T>
-Eigen::Matrix<T, Eigen::Dynamic, 1> wrapper_PoissonSolverTexture(unsigned int blocksPerGrid,
+wrapper_PoissonSolverTexture(unsigned int blocksPerGrid,
     unsigned int threadsPerBlock,
     T* rhs_dptr,
     float* A_dptr,
     T* x_dptr,
+    Eigen::Matrix<T, Eigen::Dynamic, 1> &root,
     T abstol,
     unsigned int N,
     int maxIter) {
@@ -202,7 +203,7 @@ Eigen::Matrix<T, Eigen::Dynamic, 1> wrapper_PoissonSolverTexture(unsigned int bl
     // printf("N = %d, kernel has %d blocks each has %d threads\n", N, blocksPerGrid, threadsPerBlock);
     PoissonSolverTexture<T> <<<blocksPerGrid, threadsPerBlock>>>(rhs_d, x_d, rk, pk, r_k_norm, r_k1_norm, pAp_k, abstol, N, maxIter);
     cudaUnbindTexture(Atext);
-    Eigen::Matrix<T, Eigen::Dynamic, 1> root(N);
+    // Eigen::Matrix<T, Eigen::Dynamic, 1> root(N);
 	cudaMemcpy(root.data(), x_d, vector_bytesize, cudaMemcpyDeviceToHost);
     cudaFree(A_d);
 	cudaFree(rhs_d);
@@ -212,5 +213,4 @@ Eigen::Matrix<T, Eigen::Dynamic, 1> wrapper_PoissonSolverTexture(unsigned int bl
     cudaFree(r_k_norm);
     cudaFree(r_k1_norm);
     cudaFree(pAp_k);
-    return root;
 }
