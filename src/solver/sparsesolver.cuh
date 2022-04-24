@@ -53,9 +53,6 @@ double pAp_k: pk^T A pk: initialize to 0
 alpha_k should be globally shared, or in each thread, individually
 beta_k shuold be globally shared, or in each thread, individually
 */
-__device__ double r_k_norm = 0.0;
-__device__ double r_k1_norm = 0.0;
-__device__ double pAp_k = 0.0;
 
 
 __global__

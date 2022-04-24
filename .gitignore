@@ -8,3 +8,4 @@ sparsesolver
 .DS_Store
 src/.DS_Store
 texturememory
+cusparse
