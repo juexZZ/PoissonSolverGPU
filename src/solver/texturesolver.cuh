@@ -17,14 +17,14 @@ uses texture memory
 #define index(i, j, N)  ((i)*(N)) + (j)
 
 __device__  void selfatomicCAS(float* address, float val) {
-	unsigned long long int* address_as_ull =
-		(unsigned long long int*)address;
-	unsigned long long int old = *address_as_ull, assumed;
+	unsigned int* address_as_ull =
+		(unsigned int*)address;
+	unsigned int old = *address_as_ull, assumed;
 
 	do {
 		assumed = old;
 		old = atomicCAS(address_as_ull, assumed,
-			__double_as_longlong(val));
+            __float_as_uint(val));
 
 		// Note: uses integer comparison to avoid hang in case of NaN (since NaN != NaN)
 	} while (assumed != old);
@@ -112,5 +112,5 @@ void wrapper_PoissonSolverTexture(unsigned int blocksPerGrid,
     // TODO? difficult to decide how many reference to use.
     // printf("N = %d, kernel has %d blocks each has %d threads\n", N, blocksPerGrid, threadsPerBlock);
     PoissonSolverTexture<<<blocksPerGrid, threadsPerBlock>>>(rhs_d, x_d, rk, pk, abstol, N, maxIter);
-    cudaUnbindTexure(Atext);
+    cudaUnbindTexture(Atext);
 }

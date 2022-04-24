@@ -23,6 +23,11 @@ int main(int argc, char* argv[]) {
 	Eigen::VectorXf rhs(A.cols()), x(A.rows()), x_cg(A.rows());
 	rhs.setOnes();
 	x.setZero();
+	//for (size_t i = 0; i < A.rows(); i++)
+	//{
+	//	A.row(i) = A.row(i) / A(i,i);
+	//	rhs[i] = rhs[i] / A(i,i);
+	//}
 	float reTol = 1e-8; //Relative error tolerence
 	//float absTol = 0;
 	int maxIter = atoi(argv[1]);

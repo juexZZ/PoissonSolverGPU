@@ -116,7 +116,7 @@ Matrix<T,Dynamic,Dynamic> openData(string fileToOpen)
 
 	// here we convet the vector variable into the matrix and return the resulting object, 
 	// note that matrixEntries.data() is the pointer to the first memory location at which the entries of the vector matrixEntries are stored;
-	return Map<Matrix<double, Dynamic, Dynamic>>(matrixEntries.data(), matrixRowNumber, matrixEntries.size() / matrixRowNumber);
+	return Map<Matrix<T, Dynamic, Dynamic>>(matrixEntries.data(), matrixRowNumber, matrixEntries.size() / matrixRowNumber);
 
 }
 

@@ -19,10 +19,10 @@ int main(int argc, char* argv[]) {
 	}
 	/*string PATH = "../../data/";*/
 	string PATH = "C:/NYU/gpu/PoissonSolver/data/";
-	Eigen::MatrixXd A = openData(PATH + "test_100.csv");
-	VectorXd rhs(A.cols()), x(A.rows()), x_cg(A.rows());
+	Eigen::MatrixXd A = openData<double>(PATH + "test_100.csv");
+	VectorXd rhs(A.cols()), x(A.rows());
 	rhs.setOnes();
-	x.setZero();
+	x.setOnes();
 	double reTol = 1e-8; //Relative error tolerence
 	double absTol = 0;
 	int maxIter = atoi(argv[1]);

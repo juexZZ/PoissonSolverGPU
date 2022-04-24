@@ -57,6 +57,7 @@ __device__ double r_k_norm = 0.0;
 __device__ double r_k1_norm = 0.0;
 __device__ double pAp_k = 0.0;
 
+
 __global__
 void PoissonSolverSparse_init(double* b0, double* A, int* ia, int* ja, double* xk, double* rk, double* pk, double eps,
 	unsigned int N, double* r_k_norm, double* r_k1_norm, double* pAp_k) {
@@ -139,6 +140,7 @@ void wrapper_PoissonSolverSparse_multiblock(unsigned int blocksPerGrid,
 	double abstol,
 	unsigned int N,
 	int maxIter,double* Ap_rd,double* r_k_norm,double* r_k1_norm,double* pAp_k) {
+	double temp = 0;
 	printf("N = %d, kernel has %d blocks each has %d threads\n", N, blocksPerGrid, threadsPerBlock);
 	PoissonSolverSparse_init<<<blocksPerGrid, threadsPerBlock >>> (rhs_d, A_d, ia_d, ja_d, x_d, rk, pk, abstol, N, r_k_norm, r_k1_norm, pAp_k);
 	for (size_t i = 0; i < maxIter; i++)
@@ -149,5 +151,11 @@ void wrapper_PoissonSolverSparse_multiblock(unsigned int blocksPerGrid,
 		cudaDeviceSynchronize();
 		PoissonSolverSparse_iter3 <<<blocksPerGrid, threadsPerBlock >> > (rhs_d, A_d, ia_d, ja_d, x_d, rk, pk, abstol, N,Ap_rd, r_k_norm, r_k1_norm, pAp_k);
 		cudaDeviceSynchronize();
+		cudaMemcpy(&temp, r_k1_norm, sizeof(double), cudaMemcpyDeviceToHost);
+		if (temp<abstol)
+		{
+			printf("Early Stop");
+			break;
+		}
 	}
 }

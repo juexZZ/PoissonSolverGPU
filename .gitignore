@@ -7,3 +7,4 @@ sparsesolver
 .gitignore
 .DS_Store
 src/.DS_Store
+texturememory
