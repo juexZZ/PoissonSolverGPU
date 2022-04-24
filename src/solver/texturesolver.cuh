@@ -5,45 +5,29 @@ uses texture memory
 while texture memory only supports single precision
 */
 #include <cuda.h>
-
+#include <Eigen/Dense>
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
+#include "../cudautil.cuh"
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
 
-#include "gpukernels.h"
-
 /* To index element (i,j) of a 2D array stored as 1D */
 #define index(i, j, N)  ((i)*(N)) + (j)
 
-__device__  void selfatomicCAS(double* address, double val) {
-	unsigned long long int* address_as_ull =
-		(unsigned long long int*)address;
-	unsigned long long int old = *address_as_ull, assumed;
-
-	do {
-		assumed = old;
-		old = atomicCAS(address_as_ull, assumed,
-            __double_as_longlong(val));
-
-		// Note: uses integer comparison to avoid hang in case of NaN (since NaN != NaN)
-	} while (assumed != old);
+__device__ __forceinline__
+double my_fast_float2double(float a, double mom)
+{
+    unsigned int ia = __float_as_int(a);
+    return __hiloint2double((((ia >> 3) ^ ia) & 0x07ffffff) ^ ia, ia << 29);
 }
 
-__device__  void selfatomicCAS(float* address, float val) {
-	unsigned int* address_as_ull =
-		(unsigned int*)address;
-	unsigned int old = *address_as_ull, assumed;
-
-	do {
-		assumed = old;
-		old = atomicCAS(address_as_ull, assumed,
-            __float_as_uint(val));
-
-		// Note: uses integer comparison to avoid hang in case of NaN (since NaN != NaN)
-	} while (assumed != old);
+__device__ __forceinline__
+float my_fast_float2double(float a, float mom)
+{
+    return a;
 }
 
 template<typename T>
@@ -70,13 +54,13 @@ __global__ void PoissonSolverTexture(T* b0, T* xk, T* rk, T* pk,
         T Ax0_r = 0;
         //float x0_r = xk[ri];
         for(unsigned int j=0; j<N; j++){
-            T Aik = (T)tex1Dfetch<float>(Atext, index(ri,j,N));//A[index(ri, j, N)];
+            T Aik = my_fast_float2double(tex1Dfetch<float>(Atext, index(ri,j,N)), Ax0_r);//A[index(ri, j, N)];
             Ax0_r += Aik * xk[j];
         }
         T b_r = b0[ri];
         rk[ri] = b_r - Ax0_r;
         pk[ri] = b_r - Ax0_r;
-        atomicAdd(&r_k_norm, rk[ri]*rk[ri]); //&r_k_norm takes addr
+        atomicAdd(r_k_norm, rk[ri] * rk[ri]); //&r_k_norm takes addr
         __syncthreads();
         // iterate here
         for(unsigned int itk = 0; itk<iters; itk++){
@@ -84,37 +68,37 @@ __global__ void PoissonSolverTexture(T* b0, T* xk, T* rk, T* pk,
             T Ap_r = 0;
             T pk_r = pk[ri];
             for(unsigned int j=0; j<N; j++){
-                T Aik = (T)tex1Dfetch<float>(Atext, index(ri,j,N)); //A[index(ri, j, N)];
+                T Aik = my_fast_float2double(tex1Dfetch<float>(Atext, index(ri,j,N)), Ap_r); //A[index(ri, j, N)];
                 Ap_r += Aik * pk[j];
             }
-            atomicAdd(&pAp_k, pk_r*Ap_r);
-            selfatomicCAS(&r_k1_norm, 0.0);//r_k1_norm = 0.0;
+            atomicAdd(pAp_k, pk_r*Ap_r);
+            selfatomicCAS(r_k1_norm, 0.0);//r_k1_norm = 0.0;
             __syncthreads();
-            T alpha_k = r_k_norm / pAp_k; //solve contension by getting one for each thread
+            T alpha_k = *r_k_norm / *pAp_k; //solve contension by getting one for each thread
             // update x_k to x_{k+1}, r_k to r_{k+1}
             xk[ri] = xk[ri] + alpha_k * pk_r;
             rk[ri] = rk[ri] - alpha_k * Ap_r;
             // compute beta k
-            atomicAdd(&r_k1_norm, rk[ri]*rk[ri]);
+            atomicAdd(r_k1_norm, rk[ri]*rk[ri]);
             __syncthreads();
             // terminating condition:
-            if(r_k1_norm < eps){
+            if(*r_k1_norm < eps){
                 break;
             }
-            T temp_r_k1_norm = r_k1_norm;
-            T beta_k = r_k1_norm / r_k_norm; //solve contension by getting one for each thread
+            T temp_r_k1_norm = *r_k1_norm;
+            T beta_k = *r_k1_norm / *r_k_norm; //solve contension by getting one for each thread
             // update pk to pk1
             pk[ri] = rk[ri] + beta_k * pk[ri];
             __syncthreads();
-            selfatomicCAS(&pAp_k, 0.0);
-            selfatomicCAS(&r_k_norm, temp_r_k1_norm); // update rk norm to r_k1_norm, set r_k1_norm to 0 before next iter.
+            selfatomicCAS(pAp_k, 0.0);
+            selfatomicCAS(r_k_norm, temp_r_k1_norm); // update rk norm to r_k1_norm, set r_k1_norm to 0 before next iter.
         }
     }
 }
     
 // wrapper function 
 template <typename T>
-void wrapper_PoissonSolverTexture(unsigned int blocksPerGrid,
+Eigen::Matrix<T, Eigen::Dynamic, 1> wrapper_PoissonSolverTexture(unsigned int blocksPerGrid,
     unsigned int threadsPerBlock,
     T* rhs_dptr,
     float* A_dptr,

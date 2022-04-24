@@ -9,3 +9,4 @@ sparsesolver
 src/.DS_Store
 texturememory
 cusparse
+main_test

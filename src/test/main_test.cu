@@ -10,57 +10,59 @@ test main
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
+//#include <unistd.h>
 #include <string>
 #include "../utils.h"
 // #include "../solver/gpukernels.cuh"
 #include "../solver/densesolver.cuh" //must see 
 #include "../solver/texturesolver.cuh"
+#include "../solver/sparsesolver.cuh"
 
 using namespace std;
+using namespace Eigen;
 
 bool double_precision = true; //default
-int maxIter;
-string algo;
+int maxIter=1000;
+string algo="t";
 
-void arg_parser(int argc, char** argv){
-    int c;
-    while((c=getopt(argc, argv, "i::a::p")) != -1){
-        switch (c)
-        {
-        case 'i':
-            maxIter = stoi(string(optarg));
-            break;
-        case 'a':
-            algo = string(optarg);
-            break;
-        case 'p':
-            double_precision = stoi(string(optarg));
-        case '?':
-            if (optopt == 'i' || optopt == 'a' || optopt == 'p')
-                fprintf (stderr, "Option -%c requires an argument.\n", optopt);
-            else if (isprint (optopt))
-                fprintf (stderr, "Unknown option `-%c'.\n", optopt);
-            else
-                fprintf (stderr,
-                        "Unknown option character `\\x%x'.\n",
-                        optopt);
-            exit(1);
-        default:
-            abort();
-        }
-    }
-}
+//void arg_parser(int argc, char** argv){
+//    int c;
+//    while((c=getopt(argc, argv, "i::a::p")) != -1){
+//        switch (c)
+//        {
+//        case 'i':
+//            maxIter = stoi(string(optarg));
+//            break;
+//        case 'a':
+//            algo = string(optarg);
+//            break;
+//        case 'p':
+//            double_precision = stoi(string(optarg));
+//        case '?':
+//            if (optopt == 'i' || optopt == 'a' || optopt == 'p')
+//                fprintf (stderr, "Option -%c requires an argument.\n", optopt);
+//            else if (isprint (optopt))
+//                fprintf (stderr, "Unknown option `-%c'.\n", optopt);
+//            else
+//                fprintf (stderr,
+//                        "Unknown option character `\\x%x'.\n",
+//                        optopt);
+//            exit(1);
+//        default:
+//            abort();
+//        }
+//    }
+//}
 
 int main(int argc, char* argv[]) {
-	if(argc!=4){
-		cout<<"Usage: ./cudatest path_to_data -i num_iter -p precision(0/1) -a method"<<endl;
-        exit(1);
-	}
+	//if(argc!=4){
+	//	cout<<"Usage: ./cudatest path_to_data -i num_iter -p precision(0/1) -a method"<<endl;
+ //       exit(1);
+	//}
 	/*string PATH = "../../data/";*/
-    // string PATH = "C:/NYU/gpu/PoissonSolver/data/";
-    arg_parser()
-	string PATH = string(argv[1]);
+     string PATH = "C:/NYU/gpu/PoissonSolver/data/";
+    /*arg_parser(argc,argv);*/
+	/*string PATH = string(argv[1]);*/
     // double_precision = atoi(argv[3]); // 0 false, 1 true
 
     if (double_precision){
@@ -93,7 +95,7 @@ int main(int argc, char* argv[]) {
         }
         else if (algo == "t"){
             // cast A to float
-            EigenXf Arf = Arowmajor.cast<float>();
+            MatrixXf Arf = Arowmajor.cast<float>();
             root = wrapper_PoissonSolverTexture<double>(
                 blocksPerGrid,
                 threadsPerBlock,
@@ -135,7 +137,6 @@ int main(int argc, char* argv[]) {
         rhs.setOnes();
         x.setOnes();
         float reTol = 1e-3; //Relative error tolerence
-        int maxIter = atoi(argv[1]);
         // convert matrix to row-major storage
         Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> Arowmajor = A;
         unsigned int N = A.rows();
@@ -161,7 +162,7 @@ int main(int argc, char* argv[]) {
                 blocksPerGrid,
                 threadsPerBlock,
                 rhs.data(),
-                Arf.data(),
+                Arowmajor.data(),
                 x.data(),
                 abstol,
                 N,

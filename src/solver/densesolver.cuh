@@ -7,39 +7,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
+#include "../cudautil.cuh"
 
-#include "gpukernels.cuh"
 
 /* To index element (i,j) of a 2D array stored as 1D */
 #define index(i, j, N)  ((i)*(N)) + (j)
-
-__device__  void selfatomicCAS(double* address, double val) {
-    unsigned long long int* address_as_ull =
-        (unsigned long long int*)address;
-    unsigned long long int old = *address_as_ull, assumed;
-
-    do {
-        assumed = old;
-        old = atomicCAS(address_as_ull, assumed,
-            __double_as_longlong(val));
-
-        // Note: uses integer comparison to avoid hang in case of NaN (since NaN != NaN)
-    } while (assumed != old);
-}
-
-__device__  void selfatomicCAS(float* address, float val) {
-	unsigned int* address_as_ull =
-		(unsigned int*)address;
-	unsigned int old = *address_as_ull, assumed;
-
-	do {
-		assumed = old;
-		old = atomicCAS(address_as_ull, assumed,
-            __float_as_uint(val));
-
-		// Note: uses integer comparison to avoid hang in case of NaN (since NaN != NaN)
-	} while (assumed != old);
-}
 
 template<typename T>
 __global__ void PoissonSolverDense(T* b0, T* A, T* xk, T* rk, T* pk,
