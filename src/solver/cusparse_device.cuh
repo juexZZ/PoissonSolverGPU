@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <time.h>
 
-using namespace std;
+
 
 #define CHECK_CUDA(func)                                                       \
 {                                                                              \
@@ -32,8 +32,9 @@ using namespace std;
         exit(0);                                                   \
     }                                                                          \
 }
+using namespace std;
 
-void wrapper_PoissonSolverSparse_cusparese_kernel(unsigned int blocksPerGrid,
+void wrapper_PoissonSolverSparse_cusparese_device_kernel(unsigned int blocksPerGrid,
 	unsigned int threadsPerBlock,
 	unsigned int nnz,
 	double* rhs_d,
@@ -151,7 +152,7 @@ void wrapper_PoissonSolverSparse_cusparse(unsigned int blocksPerGrid,
 	int maxIter,
 	double abstol,
 	double& iter_residual,
-	int& iters){
+	int& iters) {
 	unsigned int vector_bytesize = N * sizeof(double);
 	cudaError_t cudaStatus;
 	// convert matrix to row-major storage
@@ -251,7 +252,7 @@ void wrapper_PoissonSolverSparse_cusparse(unsigned int blocksPerGrid,
 	//setup geometry
 
 	// solve at device side
-	wrapper_PoissonSolverSparse_cusparese_kernel(blocksPerGrid, threadsPerBlock, A.nonZeros(), rhs_d, A_d, ia_d, ja_d, x_d, rk, pk, abstol, N, maxIter, Ap_rd,iter_residual,iters);
+	wrapper_PoissonSolverSparse_cusparese_device_kernel(blocksPerGrid, threadsPerBlock, A.nonZeros(), rhs_d, A_d, ia_d, ja_d, x_d, rk, pk, abstol, N, maxIter, Ap_rd, iter_residual, iters);
 
 	// move back and write to the root vector
 	cudaMemcpy(root.data(), x_d, vector_bytesize, cudaMemcpyDeviceToHost);

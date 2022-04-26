@@ -58,10 +58,10 @@ __global__ void PoissonSolverSparse_init(T* b0, int* ia, int* ja, T* xk, T* rk, 
 		// initial, compute r0 and p0
 		T Ax0_r = 0;
 		//T x0_r = xk[ri];
-        int rstart = tex1Dfetch<int>(ia, ri);
-        int rend = tex1Dfetch<int>(ia, ri+1);
+        int rstart = tex1Dfetch<int>(iat, ri);
+        int rend = tex1Dfetch<int>(iat, ri+1);
 		for (unsigned int j = 0; j < rend - rstart; j++) {
-            int xind = tex1Dfetch<int>(ja, j+rstart);
+            int xind = tex1Dfetch<int>(jat, j+rstart);
 			Ax0_r += my_fast_float2double(tex1Dfetch<float>(Atext, j+rstart), Ax0_r) * xk[xind];
 		}
 		T b_r = b0[ri];
@@ -83,10 +83,10 @@ __global__ void PoissonSolverSparse_iter1(T* b0, int* ia, int* ja, T* xk, T* rk,
 		// compute \alpha_k
 		T Ap_r = 0;
 		T pk_r = pk[ri];
-        int rstart = tex1Dfetch<int>(ia, ri);
-        int rend = tex1Dfetch<int>(ia, ri+1);
+        int rstart = tex1Dfetch<int>(iat, ri);
+        int rend = tex1Dfetch<int>(iat, ri+1);
 		for (unsigned int j = 0; j < rend - rstart; j++) {
-            int pind = tex1Dfetch<int>(ja, j+rstart);
+            int pind = tex1Dfetch<int>(jat, j+rstart);
 			Ap_r += my_fast_float2double(tex1Dfetch<float>(Atext, j+rstart), Ap_r) * pk[pind]; //pk_r;
 		}
 		Ap_rd[ri] = Ap_r;
@@ -127,20 +127,22 @@ __global__ void PoissonSolverSparse_iter3(T* b0, int* ia, int* ja, T* xk, T* rk,
 template <typename T>
 void wrapper_PoissonSolverSparse_texture_multiblock(unsigned int blocksPerGrid,
 	unsigned int threadsPerBlock,
-	Eigen::Matrix<T, Eigen::Dynamic, 1> &rhs_d,
-	Eigen::SparseMatrix<float> &A_d,
+	Eigen::Matrix<T, Eigen::Dynamic, 1> &rhs,
+	Eigen::SparseMatrix<float> &A,
 	Eigen::Matrix<T, Eigen::Dynamic, 1> &x,
 	Eigen::Matrix<T, Eigen::Dynamic, 1> &root,
 	unsigned int N,
 	int maxIter,
-	T abstol){
+	T abstol,
+	T& iter_residual,
+	int& iters){
 
 	unsigned int vector_bytesize = N * sizeof(T);
 	T* rhs_d; // b(rhs) on device
 	// Triplet for A
 	float* A_d;
-	int* ia_d,
-	int* ja_d,
+	int* ia_d;
+	int* ja_d;
 	T* r_k_norm;
 	T* r_k1_norm;
 	T* pAp_k;
@@ -149,9 +151,11 @@ void wrapper_PoissonSolverSparse_texture_multiblock(unsigned int blocksPerGrid,
 	T* pk;
 	T* Ap_rd;
 
-	T temp = 0;
-	Ap_r=(T*)calloc(N,sizeof(T));
+	T initial = 0.0;
+	T temp = 0.0;
+	T* Ap_r=(T*)calloc(N,sizeof(T));
 
+	cudaError_t cudaStatus;
 	cudaStatus = cudaMalloc((void**)&A_d, A.nonZeros() * sizeof(float));
 	if (cudaStatus != cudaSuccess) {
 		fprintf(stderr, "cudaMalloc failed!");
@@ -270,8 +274,9 @@ void wrapper_PoissonSolverSparse_texture_multiblock(unsigned int blocksPerGrid,
 
 	printf("N = %d, kernel has %d blocks each has %d threads\n", N, blocksPerGrid, threadsPerBlock);
 	PoissonSolverSparse_init<T><<<blocksPerGrid, threadsPerBlock >>> (rhs_d, ia_d, ja_d, x_d, rk, pk, abstol, N, r_k_norm, r_k1_norm, pAp_k);
-	for (size_t i = 0; i < maxIter; i++)
+	for (size_t i= 0; i < maxIter;i++)
 	{
+		iters = i;
 		PoissonSolverSparse_iter1<T> <<<blocksPerGrid, threadsPerBlock >> > (rhs_d, ia_d, ja_d, x_d, rk, pk, abstol, N,Ap_rd, r_k_norm, r_k1_norm, pAp_k);
 		cudaDeviceSynchronize();
 		PoissonSolverSparse_iter2<T> <<<blocksPerGrid, threadsPerBlock >> > (rhs_d, ia_d, ja_d, x_d, rk, pk, abstol, N,Ap_rd, r_k_norm, r_k1_norm, pAp_k);
@@ -279,9 +284,10 @@ void wrapper_PoissonSolverSparse_texture_multiblock(unsigned int blocksPerGrid,
 		PoissonSolverSparse_iter3<T> <<<blocksPerGrid, threadsPerBlock >> > (rhs_d, ia_d, ja_d, x_d, rk, pk, abstol, N,Ap_rd, r_k_norm, r_k1_norm, pAp_k);
 		cudaDeviceSynchronize();
 		cudaMemcpy(&temp, r_k1_norm, sizeof(T), cudaMemcpyDeviceToHost);
+		iter_residual = temp;
 		if (temp<abstol)
 		{
-			printf("Early Stop");
+			cout << "Early Stop " << endl;
 			break;
 		}
 	}

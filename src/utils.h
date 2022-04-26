@@ -38,6 +38,24 @@ void readSymetric(Eigen::SparseMatrix<double>& A, std::string PATH) {
 	A.setFromTriplets(triple.begin(), triple.end());
 }
 
+void readVector(Eigen::VectorXd& A, std::string PATH) {
+	std::ifstream fin(PATH);
+	long int M, L;
+	while (fin.peek() == '%')
+	{
+		fin.ignore(2048, '\n');
+	}
+	fin >> M>> L;
+	A.resize(M);
+	for (size_t i = 0; i < L; i++)
+	{
+		double data;
+		fin >> data;
+		A[i] = data;
+	}
+	fin.close();
+}
+
 void denseSPD(int n, MatrixXd& result) {
 	result.resize(n, n);
 	MatrixXd Q, D;
@@ -119,5 +137,6 @@ Matrix<T,Dynamic,Dynamic> openData(string fileToOpen)
 	return Map<Matrix<T, Dynamic, Dynamic>>(matrixEntries.data(), matrixRowNumber, matrixEntries.size() / matrixRowNumber);
 
 }
+
 
 
