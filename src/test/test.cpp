@@ -1,21 +1,17 @@
 #include <catch2/catch.hpp>
 #include "../utils.h"
 #include "../solver/cg.h"
+#include "../solver/poissonPre.h"
 using namespace std;
 using namespace Eigen;
-TEST_CASE("LoadMarket") {
-	const std::string path = "E:/NYU/GPU_Poisson/PoissonSolver/data";
-	Eigen::SparseMatrix<double> A;
-	const bool ok = loadMarket(path + "/poisson3Db.mtx",A);
-	REQUIRE(ok);	
-}
+
 TEST_CASE("DynamicMatrix") {
 	MatrixXd a;
 	a.resize(100, 100);
 	a.setOnes();
 	cout << a.rows() << endl;
 	cout << a.cols() << endl;
-	/*REQUIRE(a.rows() == 100);*/
+	REQUIRE(a.rows() == 100);
 }
 //
 //TEST_CASE("CreateRandom") {
@@ -30,7 +26,7 @@ TEST_CASE("DynamicMatrix") {
 
 TEST_CASE("CGSequential") {
 	string PATH = "E:/NYU/GPU_Poisson/PoissonSolver/data/";
-	MatrixXd A = openData(PATH + "test_100.csv");
+	MatrixXd A = openData<double>(PATH + "test_100.csv");
 	VectorXd b(A.cols()),x(A.rows()),x_cg(A.rows());
 	b.setOnes();
 	x.setZero();
@@ -44,6 +40,7 @@ TEST_CASE("CGSequential") {
 	REQUIRE((A * x_cg - b).norm() < 1e-5);
 }
 
-TEST_CASE("Sparse Generator") {
+TEST_CASE("Generator") {
+	PoissonProblem pro;
 
 }

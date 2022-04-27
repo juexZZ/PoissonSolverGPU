@@ -14,7 +14,7 @@ class BoundaryCondition { //xlb,xub,ylb,yub,zlb,zub
 public:
 	bool is_Dirichlet = true; //True for Dirichlet condition and false for cauchy condition. 
 	VectorXd _value;
-	MatrixXd _Diff;
+	VectorXd _Diff;
 };
 
 class PoissonProblem {
@@ -164,7 +164,8 @@ void preConditioner(PoissonProblem pro, MatrixXd& output, VectorXd& rhs) {
 			bool xlb = (i > 1);
 			for (size_t j = 0; j < pro.ylength - 2; j++)
 			{
-				Vector2i  coor(i, j);
+				Vector2i  coor;
+				coor << i, j;
 				output(i * j, i * j) = 2.0/pro.dx/pro.dx+2.0/pro.dy/pro.dy;
 				bool yub = (j < pro.ylength - 3);
 				bool ylb = (j > 1);
@@ -255,7 +256,8 @@ void preConditioner(PoissonProblem pro, MatrixXd& output, VectorXd& rhs) {
 				{
 					bool zub = (k < pro.zlength - 3);
 					bool zlb = (k > 1);
-					Vector3i  coor(i, j, k);
+					Vector3i  coor;
+					coor << i, j, k;
 					output(coor.dot(base3d),coor.dot(base3d)) =2.0/dx2+2.0/dy2+2.0/dz2;
 					if (xlb)
 					{
@@ -365,7 +367,8 @@ void preConditioner(PoissonProblem pro, MatrixXd& output, VectorXd& rhs) {
 			{
 				for (size_t k = 1; k < pro.zlength - 3; k++)
 				{
-					Vector3i  coor(i, j, k);
+					Vector3i  coor;
+					coor << i, j, k;
 					output(coor.dot(base3d), coor.dot(base3d)) = 2.0 / dx2 + 2.0 / dy2 + 2.0 / dz2;
 					output(coor.dot(base3d), (coor + Vector3i(0, -1, 0)).dot(base3d)) = -1/dy2;
 					output(coor.dot(base3d), (coor + Vector3i(0, 1, 0)).dot(base3d)) = -1/dy2;
