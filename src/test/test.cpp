@@ -39,8 +39,3 @@ TEST_CASE("CGSequential") {
 	x_cg = cg.solve(b);
 	REQUIRE((A * x_cg - b).norm() < 1e-5);
 }
-
-TEST_CASE("Generator") {
-	PoissonProblem pro;
-
-}
