@@ -39,7 +39,7 @@ int main(int argc, char* argv[]) {
 
     if (double_precision){
         cout<<"using double precision..."<<endl;
-        Eigen::MatrixXd A = openData<double>(PATH + "test_100.csv");
+        Eigen::MatrixXd A = openData<double>(PATH);
         Eigen::VectorXd rhs(A.cols()), x(A.rows());
         rhs.setOnes();
         x.setOnes();

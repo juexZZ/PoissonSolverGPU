@@ -98,7 +98,7 @@ __global__ void PoissonSolverTexture(T* b0, T* xk, T* rk, T* pk,
     
 // wrapper function 
 template <typename T>
-wrapper_PoissonSolverTexture(unsigned int blocksPerGrid,
+void wrapper_PoissonSolverTexture(unsigned int blocksPerGrid,
     unsigned int threadsPerBlock,
     T* rhs_dptr,
     float* A_dptr,
