@@ -12,6 +12,10 @@ First you need:
 
 `cd ./src/test`
 
+To make sure the project can compile, load cuda version 11+:
+
+`module load cuda-11.4`
+
 To compile the dense version:
 
 `nvcc --std c++11 -I /PATH/TO/eigen-3.3.9 -o dense dense.cu -arch=sm_60 `
